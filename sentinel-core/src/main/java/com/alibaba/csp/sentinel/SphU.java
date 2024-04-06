@@ -278,18 +278,7 @@ public class SphU {
         return Env.sph.entryWithPriority(name, trafficType, 1, true);
     }
 
-    /**
-     * Record statistics and perform rule checking for the given resource.
-     *
-     * @param name         the unique name for the protected resource
-     * @param resourceType classification of the resource (e.g. Web or RPC)
-     * @param trafficType  the traffic type (inbound, outbound or internal). This is used
-     *                     to mark whether it can be blocked when the system is unstable,
-     *                     only inbound traffic could be blocked by {@link SystemRule}
-     * @return the {@link Entry} of this invocation (used for mark the invocation complete and get context data)
-     * @throws BlockException if the block criteria is met (e.g. metric exceeded the threshold of any rules)
-     * @since 1.7.0
-     */
+    /** 执行资源统计、Slot规则检查 */
     public static Entry entry(String name, int resourceType, EntryType trafficType) throws BlockException {
         return Env.sph.entryWithType(name, resourceType, trafficType, 1, OBJECTS0);
     }

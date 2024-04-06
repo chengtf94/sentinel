@@ -1,18 +1,3 @@
-/*
- * Copyright 1999-2018 Alibaba Group Holding Ltd.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.alibaba.csp.sentinel.slots.block.flow.controller;
 
 import java.util.concurrent.atomic.AtomicLong;
@@ -23,15 +8,22 @@ import com.alibaba.csp.sentinel.util.TimeUtil;
 import com.alibaba.csp.sentinel.node.Node;
 
 /**
+ * 限速控制器：通过使用latestPassedTime属性来记录最后一次通过的时间，然后根据规则中QPS的限制，计算当前请求是否可以通过
+ * 简单，但是都不同于基础的令牌桶算法、漏桶算法，没有当前令牌数或水容量的概念，只是匀速流控
+ * 举个例子：设置QPS为10，则每100毫秒允许通过一个，通过计算当前时间是否已经过了latestPassedTime之后的100毫秒，来判断是否可以通过。
+ *  假设才过了 50ms，那么需要当前线程再 sleep 50ms，然后才可以通过。
+ *  如果同时有另一个请求呢？那需要 sleep 150ms 才行。
+ *
  * @author jialiang.linjl
  */
 public class RateLimiterController implements TrafficShapingController {
 
+    /**  最大排队时长（默认 500ms）、QPS限流阈值、上一次请求通过的时间 */
     private final int maxQueueingTimeMs;
     private final double count;
-
     private final AtomicLong latestPassedTime = new AtomicLong(-1);
 
+    /** 构造方法 */
     public RateLimiterController(int timeOut, double count) {
         this.maxQueueingTimeMs = timeOut;
         this.count = count;
