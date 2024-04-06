@@ -1,18 +1,3 @@
-/*
- * Copyright 1999-2019 Alibaba Group Holding Ltd.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.alibaba.csp.sentinel.slots.block.degrade.circuitbreaker;
 
 import com.alibaba.csp.sentinel.context.Context;
@@ -20,62 +5,32 @@ import com.alibaba.csp.sentinel.slotchain.ResourceWrapper;
 import com.alibaba.csp.sentinel.slots.block.degrade.DegradeRule;
 
 /**
- * <p>Basic <a href="https://martinfowler.com/bliki/CircuitBreaker.html">circuit breaker</a> interface.</p>
+ * 断路器接口
  *
  * @author Eric Zhao
  */
 public interface CircuitBreaker {
 
-    /**
-     * Get the associated circuit breaking rule.
-     *
-     * @return associated circuit breaking rule
-     */
+    /** 获取关联的断路器规则 */
     DegradeRule getRule();
 
-    /**
-     * Acquires permission of an invocation only if it is available at the time of invoking.
-     *
-     * @param context context of current invocation
-     * @return {@code true} if permission was acquired and {@code false} otherwise
-     */
+    /** 检查是否允许通过 */
     boolean tryPass(Context context);
 
-    /**
-     * Get current state of the circuit breaker.
-     *
-     * @return current state of the circuit breaker
-     */
+    /** 获取当前的断路器状态 */
     State currentState();
 
-    /**
-     * <p>Record a completed request with the context and handle state transformation of the circuit breaker.</p>
-     * <p>Called when a <strong>passed</strong> invocation finished.</p>
-     *
-     * @param context context of current invocation
-     */
+    /** 将完成后的请求记录到统计上下文总，并尝试执行断路器的状态转移 */
     void onRequestComplete(Context context);
 
-    /**
-     * Circuit breaker state.
-     */
+    /** 断路器状态机 */
     enum State {
-        /**
-         * In {@code OPEN} state, all requests will be rejected until the next recovery time point.
-         */
+        /** 打开状态：所有请求在下一个恢复时间点之前都被拒绝 */
         OPEN,
-        /**
-         * In {@code HALF_OPEN} state, the circuit breaker will allow a "probe" invocation.
-         * If the invocation is abnormal according to the strategy (e.g. it's slow), the circuit breaker
-         * will re-transform to the {@code OPEN} state and wait for the next recovery time point;
-         * otherwise the resource will be regarded as "recovered" and the circuit breaker
-         * will cease cutting off requests and transform to {@code CLOSED} state.
-         */
+        /** 半打开状态：允许放行业务请求作为探针请求调用，若探针请求成功，则执行恢复策略，恢复至100%后进入关闭状态，否则仍然进入打开状态 */
         HALF_OPEN,
-        /**
-         * In {@code CLOSED} state, all requests are permitted. When current metric value exceeds the threshold,
-         * the circuit breaker will transform to {@code OPEN} state.
-         */
+        /** 关闭状态：所有请求均被允许，若当前的异常指标超过配置的阈值，则进入打开状态 */
         CLOSED
     }
+
 }

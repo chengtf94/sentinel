@@ -1,18 +1,3 @@
-/*
- * Copyright 1999-2018 Alibaba Group Holding Ltd.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.alibaba.csp.sentinel.slots.statistic.base;
 
 import java.util.ArrayList;
@@ -24,14 +9,7 @@ import com.alibaba.csp.sentinel.util.AssertUtil;
 import com.alibaba.csp.sentinel.util.TimeUtil;
 
 /**
- * <p>
- * Basic data structure for statistic metrics in Sentinel.
- * </p>
- * <p>
- * Leap array use sliding window algorithm to count data. Each bucket cover {@code windowLengthInMs} time span,
- * and the total time span is {@link #intervalInMs}, so the total bucket amount is:
- * {@code sampleCount = intervalInMs / windowLengthInMs}.
- * </p>
+ * Sentinel统计指标的基础数据结构
  *
  * @param <T> type of statistic data
  * @author jialiang.linjl
@@ -40,86 +18,38 @@ import com.alibaba.csp.sentinel.util.TimeUtil;
  */
 public abstract class LeapArray<T> {
 
+    /** 统计窗口大小、采样数、间隔毫秒数、间隔秒数、数组、更新锁 */
     protected int windowLengthInMs;
     protected int sampleCount;
     protected int intervalInMs;
     private double intervalInSecond;
-
     protected final AtomicReferenceArray<WindowWrap<T>> array;
-
-    /**
-     * The conditional (predicate) update lock is used only when current bucket is deprecated.
-     */
     private final ReentrantLock updateLock = new ReentrantLock();
 
-    /**
-     * The total bucket count is: {@code sampleCount = intervalInMs / windowLengthInMs}.
-     *
-     * @param sampleCount  bucket count of the sliding window
-     * @param intervalInMs the total time interval of this {@link LeapArray} in milliseconds
-     */
+    /** 构造方法 */
     public LeapArray(int sampleCount, int intervalInMs) {
         AssertUtil.isTrue(sampleCount > 0, "bucket count is invalid: " + sampleCount);
         AssertUtil.isTrue(intervalInMs > 0, "total time interval of the sliding window should be positive");
         AssertUtil.isTrue(intervalInMs % sampleCount == 0, "time span needs to be evenly divided");
-
         this.windowLengthInMs = intervalInMs / sampleCount;
         this.intervalInMs = intervalInMs;
         this.intervalInSecond = intervalInMs / 1000.0;
         this.sampleCount = sampleCount;
-
         this.array = new AtomicReferenceArray<>(sampleCount);
     }
 
-    /**
-     * Get the bucket at current timestamp.
-     *
-     * @return the bucket at current timestamp
-     */
+    /** 获取当前时间所归属的桶 */
     public WindowWrap<T> currentWindow() {
         return currentWindow(TimeUtil.currentTimeMillis());
     }
-
-    /**
-     * Create a new statistic value for bucket.
-     *
-     * @param timeMillis current time in milliseconds
-     * @return the new empty bucket
-     */
-    public abstract T newEmptyBucket(long timeMillis);
-
-    /**
-     * Reset given bucket to provided start time and reset the value.
-     *
-     * @param startTime  the start time of the bucket in milliseconds
-     * @param windowWrap current bucket
-     * @return new clean bucket at given start time
-     */
-    protected abstract WindowWrap<T> resetWindowTo(WindowWrap<T> windowWrap, long startTime);
-
-    private int calculateTimeIdx(/*@Valid*/ long timeMillis) {
-        long timeId = timeMillis / windowLengthInMs;
-        // Calculate current index so we can map the timestamp to the leap array.
-        return (int)(timeId % array.length());
-    }
-
-    protected long calculateWindowStart(/*@Valid*/ long timeMillis) {
-        return timeMillis - timeMillis % windowLengthInMs;
-    }
-
-    /**
-     * Get bucket item at provided timestamp.
-     *
-     * @param timeMillis a valid timestamp in milliseconds
-     * @return current bucket item at provided timestamp if the time is valid; null if time is invalid
-     */
     public WindowWrap<T> currentWindow(long timeMillis) {
         if (timeMillis < 0) {
             return null;
         }
-
+        // #1 计算该时间所归属的桶索引
         int idx = calculateTimeIdx(timeMillis);
-        // Calculate current bucket start time.
+
+        // #2 计算当前窗口的起始时间戳
         long windowStart = calculateWindowStart(timeMillis);
 
         /*
@@ -146,10 +76,8 @@ public abstract class LeapArray<T> {
                  */
                 WindowWrap<T> window = new WindowWrap<T>(windowLengthInMs, windowStart, newEmptyBucket(timeMillis));
                 if (array.compareAndSet(idx, null, window)) {
-                    // Successfully updated, return the created bucket.
                     return window;
                 } else {
-                    // Contention failed, the thread will yield its time slice to wait for bucket available.
                     Thread.yield();
                 }
             } else if (windowStart == old.windowStart()) {
@@ -185,13 +113,11 @@ public abstract class LeapArray<T> {
                  */
                 if (updateLock.tryLock()) {
                     try {
-                        // Successfully get the update lock, now we reset the bucket.
                         return resetWindowTo(old, windowStart);
                     } finally {
                         updateLock.unlock();
                     }
                 } else {
-                    // Contention failed, the thread will yield its time slice to wait for bucket available.
                     Thread.yield();
                 }
             } else if (windowStart < old.windowStart()) {
@@ -200,6 +126,23 @@ public abstract class LeapArray<T> {
             }
         }
     }
+
+    /** 计算该时间所归属的桶索引 */
+    private int calculateTimeIdx(/*@Valid*/ long timeMillis) {
+        long timeId = timeMillis / windowLengthInMs;
+        return (int)(timeId % array.length());
+    }
+
+    /** 计算当前窗口的起始时间戳 */
+    protected long calculateWindowStart(/*@Valid*/ long timeMillis) {
+        return timeMillis - timeMillis % windowLengthInMs;
+    }
+
+    /** 创建新的桶 */
+    public abstract T newEmptyBucket(long timeMillis);
+
+    /** 基于给定的起始时间，重置给定桶、重置数据 */
+    protected abstract WindowWrap<T> resetWindowTo(WindowWrap<T> windowWrap, long startTime);
 
     /**
      * Get the previous bucket item before provided timestamp.

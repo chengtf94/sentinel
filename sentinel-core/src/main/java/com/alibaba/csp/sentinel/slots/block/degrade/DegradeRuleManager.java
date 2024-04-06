@@ -162,18 +162,15 @@ public final class DegradeRuleManager {
         return newCircuitBreakerFrom(rule);
     }
 
-    /**
-     * Create a circuit breaker instance from provided circuit breaking rule.
-     *
-     * @param rule a valid circuit breaking rule
-     * @return new circuit breaker based on provided rule; null if rule is invalid or unsupported type
-     */
+    /** 基于断路器规则创建断路器实例 */
     private static CircuitBreaker newCircuitBreakerFrom(/*@Valid*/ DegradeRule rule) {
         switch (rule.getGrade()) {
             case RuleConstant.DEGRADE_GRADE_RT:
+                // #1 熔断策略为慢调用比例，则创建ResponseTimeCircuitBreaker
                 return new ResponseTimeCircuitBreaker(rule);
             case RuleConstant.DEGRADE_GRADE_EXCEPTION_RATIO:
             case RuleConstant.DEGRADE_GRADE_EXCEPTION_COUNT:
+                // #2 熔断策略为异常比例或异常数，则创建ExceptionCircuitBreaker
                 return new ExceptionCircuitBreaker(rule);
             default:
                 return null;

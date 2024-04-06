@@ -1,18 +1,3 @@
-/*
- * Copyright 1999-2018 Alibaba Group Holding Ltd.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.alibaba.csp.sentinel.slots.block.degrade;
 
 import java.util.List;
@@ -29,7 +14,7 @@ import com.alibaba.csp.sentinel.slots.block.degrade.circuitbreaker.CircuitBreake
 import com.alibaba.csp.sentinel.spi.Spi;
 
 /**
- * A {@link ProcessorSlot} dedicates to circuit breaking.
+ * 熔断降级Slot
  *
  * @author Carpenter Lee
  * @author Eric Zhao
@@ -41,16 +26,17 @@ public class DegradeSlot extends AbstractLinkedProcessorSlot<DefaultNode> {
     public void entry(Context context, ResourceWrapper resourceWrapper, DefaultNode node, int count,
                       boolean prioritized, Object... args) throws Throwable {
         performChecking(context, resourceWrapper);
-
         fireEntry(context, resourceWrapper, node, count, prioritized, args);
     }
 
+    /** 熔断规则检查 */
     void performChecking(Context context, ResourceWrapper r) throws BlockException {
         List<CircuitBreaker> circuitBreakers = DegradeRuleManager.getCircuitBreakers(r.getName());
         if (circuitBreakers == null || circuitBreakers.isEmpty()) {
             return;
         }
         for (CircuitBreaker cb : circuitBreakers) {
+            // 检查是否允许通过
             if (!cb.tryPass(context)) {
                 throw new DegradeException(cb.getRule().getLimitApp(), cb.getRule());
             }
@@ -69,14 +55,13 @@ public class DegradeSlot extends AbstractLinkedProcessorSlot<DefaultNode> {
             fireExit(context, r, count, args);
             return;
         }
-
+        // 执行请求完成回调：将完成后的请求记录到统计上下文总，并尝试执行断路器的状态转移
         if (curEntry.getBlockError() == null) {
-            // passed request
             for (CircuitBreaker circuitBreaker : circuitBreakers) {
                 circuitBreaker.onRequestComplete(context);
             }
         }
-
         fireExit(context, r, count, args);
     }
+
 }
