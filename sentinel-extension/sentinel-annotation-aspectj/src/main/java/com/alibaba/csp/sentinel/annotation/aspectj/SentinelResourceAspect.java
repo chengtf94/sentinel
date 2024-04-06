@@ -42,19 +42,18 @@ public class SentinelResourceAspect extends AbstractSentinelAspectSupport {
             entry = SphU.entry(resourceName, resourceType, entryType, pjp.getArgs());
             return pjp.proceed();
         } catch (BlockException ex) {
+            // #3 处理拒绝异常
             return handleBlockException(pjp, annotation, ex);
         } catch (Throwable ex) {
             Class<? extends Throwable>[] exceptionsToIgnore = annotation.exceptionsToIgnore();
-            // The ignore list will be checked first.
             if (exceptionsToIgnore.length > 0 && exceptionBelongsTo(ex, exceptionsToIgnore)) {
                 throw ex;
             }
             if (exceptionBelongsTo(ex, annotation.exceptionsToTrace())) {
                 traceException(ex);
+                // #4 处理Fallback
                 return handleFallback(pjp, annotation, ex);
             }
-
-            // No fallback function can handle the exception, so throw it out.
             throw ex;
         } finally {
             if (entry != null) {
